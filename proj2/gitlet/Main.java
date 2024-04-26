@@ -12,7 +12,7 @@ public class Main {
     /** Usage: java gitlet.Main ARGS, where ARGS contains
      *  <COMMAND> <OPERAND1> <OPERAND2> ... 
      */
-    public static void main(String[] args) throws IOException{
+    public static void main(String[] args){
 
         // TODO: what if args is empty?
         if (args.length==0){
@@ -99,8 +99,8 @@ public class Main {
      */
     public static void validOperand(String[] args,int num){
         if(args.length!=num){
-            System.out.println("Incorrect operands.");
-            System.exit(0);
+            throw new RuntimeException(
+                    String.format("Incorrect operands."));
         }
 
     }
