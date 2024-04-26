@@ -1,8 +1,17 @@
 package gitlet;
-
+import javax.swing.text.DateFormatter;
+import java.io.File;
+import java.io.IOError;
+import java.io.IOException;
+import java.io.Serializable;
 // TODO: any imports you need here
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+
 import java.util.Date; // TODO: You'll likely use this in this class
+import java.util.HashMap;
+import java.util.Locale;
 
 /** Represents a gitlet commit object.
  *  TODO: It's a good idea to give a description here of what else this Class
@@ -10,7 +19,7 @@ import java.util.Date; // TODO: You'll likely use this in this class
  *
  *  @author TODO
  */
-public class Commit {
+public class Commit implements Serializable {
     /**
      * TODO: add instance variables here.
      *
@@ -21,6 +30,98 @@ public class Commit {
 
     /** The message of this Commit. */
     private String message;
+    private String timestamp;
+    private String parentRefHash;
+    private String ownRefHash;
+    /** Stores the mapping of files and SHA-1 IDS of
+     * file's contents added to this commit.*/
+    private HashMap<String,String> blobs; //<files, SHA1>
+
 
     /* TODO: fill in the rest of this class. */
+
+    public Commit(String message,HashMap<String,String>blobMap,String parent) {
+        this.message = message;
+        Date currentTime = new Date();
+        this.timestamp = dateToTimeStamp(currentTime);
+        this.blobs = blobMap;
+        this.parentRefHash = parent;
+        this.ownRefHash = createID(); //calculate sha1 of blob
+    }
+
+    public Commit(){
+        this.message = "initial commit";
+        Date currentTime = new Date(0);
+        this.timestamp = dateToTimeStamp(currentTime);
+        this.ownRefHash = Utils.sha1(timestamp);
+        this.blobs = new HashMap<>();
+    }
+
+    public String createID(){
+        return Utils.sha1(timestamp,message,parentRefHash,blobs.toString());
+    }
+
+    public String getOwnRefHash(){
+        return ownRefHash;
+    }
+
+    public String getParentRefHash() {
+        return parentRefHash;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public String getTimestamp(){
+        return timestamp;
+    }
+
+    public HashMap<String, String> getBlobs() {
+        return blobs;
+    }
+
+    public String getIDFromFile(String fileName){
+        if(!blobs.containsKey(fileName)){
+            return null;
+        }
+        return blobs.get(fileName);
+    }
+
+   public String getFileFromFile(String sha1){
+        for(String fileName:blobs.keySet()){
+            if(blobs.get(fileName).equals(sha1)){
+                return fileName;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Adds the given file and its contents to the commit
+     * @param file
+     */
+    public void addFile(File file) throws IOException {
+        String sha1 = Utils.sha1(Utils.readContentsAsString(file));
+        blobs.put(file.getCanonicalPath(),sha1);
+        ownRefHash = createID();
+    }
+
+    /**
+     * displays information about all commits ever made
+     * i.e
+     * ===
+     * commit a0da1ea5a15ab613bf9961fd86f010cf74c7ee48
+     * Date: Thu Nov 9 20:00:05 2017 -0800
+     * A commit message.
+     */
+
+
+    public static String dateToTimeStamp(Date date){
+        DateFormat dateFormat = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z", Locale.US);
+        return dateFormat.format(date);
+    }
+
+
 }
+
