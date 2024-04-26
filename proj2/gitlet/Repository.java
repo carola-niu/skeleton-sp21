@@ -95,7 +95,7 @@ public class Repository {
         }
     }
 
-    public static void add(String fileName) throws IOException {
+    public static void add(String fileName) {
         File filename = getFileFromCWD(fileName);
         stage = getStagingArea();
         File toStagePath = join(STAGE_DIR, "stage.txt");
