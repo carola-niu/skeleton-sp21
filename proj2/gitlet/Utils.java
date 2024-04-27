@@ -128,7 +128,7 @@ class Utils {
         }
     }
 
-    static void writeStringToFile (String text, String filepath, boolean appending) {
+    static void writeStringToFile(String text, String filepath, boolean appending) {
         try {
             File logFile = new File(filepath);
             BufferedWriter out = new BufferedWriter(new FileWriter(logFile, appending));
