@@ -57,7 +57,8 @@ public class Repository {
 
     public static void init() {
         if (GITLET_DIR.exists()) {
-            System.out.println("A Gitlet version-control system already exists in the current directory.");
+            System.out.println("A Gitlet version-control system " +
+                    "already exists in the current directory.");
         } else {
             GITLET_DIR.mkdir();
             BLOB_DIR.mkdir();
@@ -111,11 +112,14 @@ public class Repository {
         }
         Commit curr = getHeadCommit();
         // remove and then add again
-        if (stage.getRemovedFiles().contains(fileName)) {
+        if (stage.getRemovedFiles().contains(fileName))
+        {
             stage.getRemovedFiles().remove(fileName);
         }
         // new file or first time modified
-        else if (!stage.getAddedFiles().containsKey(fileName) && !curr.getBlobs().containsKey(fileName)) {
+        else if (!stage.getAddedFiles().containsKey(fileName)
+                && !curr.getBlobs().containsKey(fileName))
+        {
             stage.add(fileName, blobHash);
         }
         // modified file
@@ -144,13 +148,13 @@ public class Repository {
         //change could be adding or deleting, so there are addedFile and deletedFile
         stage = getStagingArea();
         String secondParent = "";
-        if (stage.getAddedFiles().isEmpty()&& stage.getRemovedFiles().isEmpty()) {
+        if (stage.getAddedFiles().isEmpty() && stage.getRemovedFiles().isEmpty()) {
             System.out.println("No changes added to the commit.");
             return;
-        } else if (args.length == 0||args[0].isEmpty()) {
+        } else if (args.length == 0 || args[0].isEmpty()) {
             System.out.println("Please enter a commit message.");
             System.exit(0);
-        } else if (args.length==3 && args[1].equals("commit-merge")) {
+        } else if (args.length == 3 && args[1].equals("commit-merge")) {
             secondParent = args[2];
         }
         String message = args[0];
@@ -216,7 +220,7 @@ public class Repository {
         }
     }
 
-    public static void global_log() {
+    public static void globalLog() {
         for (File commitFile : Objects.requireNonNull(COMMIT_DIR.listFiles())) {
             Commit commit = readObject(commitFile, Commit.class);
             System.out.println("===");
@@ -327,7 +331,7 @@ public class Repository {
             }
             //get all files at the head of the given branch
             String commitID = readContentsAsString(branchFile);
-            File commitFile = join(COMMIT_DIR, commitID+ ".txt");
+            File commitFile = join(COMMIT_DIR, commitID + ".txt");
             Commit newCommit = readObject(commitFile, Commit.class);  // desired commit
             Commit currCommit = getHeadCommit();
             //and puts them in the working directory, overwriting previous version
@@ -361,7 +365,7 @@ public class Repository {
 
     }
 
-    public static void rm_Branch(String branchName) {
+    public static void removeBranch(String branchName) {
         File branchFile = getFile(branchName + ".txt",
                 BRANCH_DIR.listFiles());
         if (branchFile == null) {
@@ -405,7 +409,7 @@ public class Repository {
         // delete previous stored files (original commit)
         writeContents(join(BRANCH_DIR, "HEAD.txt"), pastPathway);
         writeContents(getHeadBranchName(), commitID);
-        rm_Branch(branchName);
+        removeBranch(branchName);
 
     }
 
@@ -456,8 +460,8 @@ public class Repository {
         if (conflict) {
             System.out.println("Encountered a merge conflict.");
         }
-        String message = "Merged " +branchName + " into " + removeTXT(getHeadBranchName().getName()) + ".";
-        String[] input = { message,"commit-merge", commitID};
+        String message = "Merged " + branchName + " into " + removeTXT(getHeadBranchName().getName()) + ".";
+        String[] input = { message, "commit-merge", commitID};
         commit(input);
     }
 
@@ -472,20 +476,22 @@ public class Repository {
         Commit curr = branchCommit;
         while (curr != null) {
             branchCommits.add(curr.getOwnRefHash());
-            curr = curr.getParentHash()!=null?readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class):null;
+            curr = curr.getParentHash() != null ?
+                    readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class) : null;
         }
         curr = currentCommit;
         while (curr != null) {
             if (branchCommits.contains(curr.getOwnRefHash())) {
                 return curr;
             }
-            curr = curr.getParentHash()!=null?readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class):null;
+            curr = curr.getParentHash() != null ?
+                    readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class) : null;
         }
         return null;
 
     }
 
-    public static HashSet<String> bothModified(Commit splitCommit,Commit commit, Commit currCommit){
+    public static HashSet<String> bothModified(Commit splitCommit, Commit commit, Commit currCommit){
         HashSet<String> bothModified = new HashSet<String>();
         for (String filePath : currCommit.getBlobs().keySet()) {
             if(!splitCommit.tracked(filePath)
@@ -495,11 +501,11 @@ public class Repository {
             }else if (splitCommit.tracked(filePath)
                     && !splitCommit.getBlobs().get(filePath).equals(currCommit.getBlobs().get(filePath))
                     && commit.tracked(filePath)
-                    && !commit.getBlobs().get(filePath).equals(splitCommit.getBlobs().get(filePath))){
+                    && !commit.getBlobs().get(filePath).equals(splitCommit.getBlobs().get(filePath))) {
                 bothModified.add(filePath);
             }else if (splitCommit.tracked(filePath)
                     && !splitCommit.getBlobs().get(filePath).equals(currCommit.getBlobs().get(filePath))
-                    && !commit.tracked(filePath)){
+                    && !commit.tracked(filePath)) {
                 bothModified.add(filePath);
             }
 
@@ -646,9 +652,10 @@ public class Repository {
         for (String filePath : commit.getBlobs().keySet()) {
             if (new File(filePath).exists()) {
                 String currentContents = sha1(readContentsAsString(new File(filePath)), filePath);
-                if (!headCommit.getBlobs().containsKey(filePath) && !currentContents.equals(commit.getBlobs().get(filePath))) {
-                    System.out.println("There is an untracked file in the way; " +
-                            "delete it, or add and commit it first.");
+                if (!headCommit.getBlobs().containsKey(filePath)
+                        && !currentContents.equals(commit.getBlobs().get(filePath))) {
+                    System.out.println("There is an untracked file in the way; "
+                            + "delete it, or add and commit it first.");
                     return;
                 }
             }
@@ -729,16 +736,19 @@ public class Repository {
 
         for (String fileName : stage.getAddedFiles().keySet()) {
             if (getFileFromCWD(fileName).exists()
-                    && !stage.getAddedFiles().get(fileName).equals(sha1(readContentsAsString(getFileFromCWD(fileName)), fileName))) {
+                    && !stage.getAddedFiles().get(fileName)
+                    .equals(sha1(readContentsAsString(getFileFromCWD(fileName)), fileName))) {
                 modifiedButNotStaged.put(getFileFromCWD(fileName), "modified");
-            } else if (!getFileFromCWD(fileName).exists() && getHeadCommit().getBlobs().containsKey(fileName)) {
+            } else if (!getFileFromCWD(fileName).exists()
+                    && getHeadCommit().getBlobs().containsKey(fileName)) {
                 modifiedButNotStaged.put(new File(fileName), "deleted");
             }
         }
 
         for (String fileName : headCommit.getBlobs().keySet()) {
             if (getFileFromCWD(fileName).exists()) {
-                if (!headCommit.getBlobs().get(fileName).equals(sha1(readContentsAsString(getFileFromCWD(fileName)), fileName))
+                if (!headCommit.getBlobs().get(fileName)
+                        .equals(sha1(readContentsAsString(getFileFromCWD(fileName)), fileName))
                         && !stage.getAddedFiles().containsKey(fileName)
                         && !stage.getRemovedFiles().contains(fileName)) {
                     modifiedButNotStaged.put(getFileFromCWD(fileName), "modified");

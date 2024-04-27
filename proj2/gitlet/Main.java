@@ -12,9 +12,9 @@ public class Main {
     /** Usage: java gitlet.Main ARGS, where ARGS contains
      *  <COMMAND> <OPERAND1> <OPERAND2> ... 
      */
-    public static void main(String[] args){
+    public static void main(String[] args) throws IOException {
 
-
+        // TODO: what if args is empty?
         if (args.length==0){
             System.out.println("Please enter a command.");
             System.exit(0);
@@ -49,7 +49,7 @@ public class Main {
             case "global-log":
                 checkInitialized();
                 validOperand(args,1);
-                Repository.global_log();
+                Repository.globalLog();
                 break;
             case "find":
                 checkInitialized();
@@ -74,7 +74,7 @@ public class Main {
                 break;
             case "rm-branch":
                 validOperand(args,2);
-                Repository.rm_Branch(args[1]);
+                Repository.removeBranch(args[1]);
                 break;
             case "reset":
                 //commit id
@@ -99,8 +99,8 @@ public class Main {
      */
     public static void validOperand(String[] args,int num){
         if(args.length!=num){
-            throw new RuntimeException(
-                    String.format("Incorrect operands."));
+            System.out.println("Incorrect operands.");
+            System.exit(0);
         }
 
     }

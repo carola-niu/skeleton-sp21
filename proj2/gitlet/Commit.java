@@ -26,7 +26,7 @@ public class Commit implements Serializable {
      * file's contents added to this commit.*/
     private HashMap<String, String> blobs; //<files, SHA1>
 
-    public Commit(String message,HashMap<String, String> blobMap,String parents) {
+    public Commit(String message, HashMap<String, String> blobMap, String parents) {
         this.message = message;
         Date currentTime = new Date();
         this.timestamp = dateToTimeStamp(currentTime);
