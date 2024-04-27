@@ -22,7 +22,7 @@ public class Repository {
      * comment above them describing what that variable represents and how that
      * variable is used. We've provided two examples for you.
      */
-    public static StagingArea stage = new StagingArea();
+    private static StagingArea stage;
 
     /**
      * The current working directory.
@@ -150,7 +150,7 @@ public class Repository {
         } else if (args.length == 0||args[0].isEmpty()) {
             System.out.println("Please enter a commit message.");
             System.exit(0);
-        }else if (args.length==3 && args[1].equals("commit-merge")) {
+        } else if (args.length==3 && args[1].equals("commit-merge")) {
             secondParent = args[2];
         }
         String message = args[0];
@@ -159,9 +159,9 @@ public class Repository {
         //parentID
         String currentBranch = readContentsAsString(join(BRANCH_DIR, "HEAD.txt"));
         Commit parentCommit = getHeadCommit();
-        if(secondParent.isEmpty()){
+        if (secondParent.isEmpty()) {
             parentCommit.setParents(parentCommit.getOwnRefHash());
-        }else{
+        } else {
             parentCommit.setParents(parentCommit.getOwnRefHash() + " " + secondParent);
         }
         String parentID = parentCommit.getOwnRefHash();
@@ -203,7 +203,6 @@ public class Repository {
 
     public static void log() {
         Commit curr = getHeadCommit();
-        //TODO: consider merge situation
         while (curr != null) {
             System.out.println("===");
             System.out.println("commit " + curr.getOwnRefHash());
@@ -284,9 +283,9 @@ public class Repository {
         System.out.println("=== Untracked Files ===");
         ArrayList<File> untrackedFiles = untrackedFile();
         Collections.sort(untrackedFiles);
-        for (File f : untrackedFiles) {
-            System.out.println(f.getName());
-        }
+//        for (File untracked : untrackedFiles) {
+//            System.out.println(untracked.getName());
+//        }
         System.out.println();
 
     }
@@ -453,14 +452,13 @@ public class Repository {
         untrackedFileError(branchCommit, currentCommit);
         checkCommitTobeModified(branchCommit, currentCommit, splitPoint);
         checkSplitCommit(branchCommit, currentCommit, splitPoint);
-        boolean conflict = checkMergeConflict(splitPoint,branchCommit, currentCommit);
-        String message = "Merged " +branchName + " into " + removeTXT(getHeadBranchName().getName()) + ".";
-        String[] input = { message,"commit-merge", commitID};
-        commit(input);
-
+        boolean conflict = checkConflict(branchCommit, currentCommit, splitPoint);
         if (conflict) {
             System.out.println("Encountered a merge conflict.");
         }
+        String message = "Merged " +branchName + " into " + removeTXT(getHeadBranchName().getName()) + ".";
+        String[] input = { message,"commit-merge", commitID};
+        commit(input);
     }
 
     /**
@@ -487,25 +485,59 @@ public class Repository {
 
     }
 
-    // case 3: modified in other and head; in same way or different way
-    public static boolean checkMergeConflict(Commit splitCommit,Commit commit, Commit currCommit) {
-        boolean conflict = false;
-        stage = getStagingArea();
-        for (String filePath : commit.getBlobs().keySet()) {
-            if (currCommit.tracked(filePath) && !currCommit.getBlobs().get(filePath).equals(commit.getBlobs().get(filePath))&& !splitCommit.tracked(filePath)) {
-                String contents = readContentsAsString(join(BLOB_DIR, commit.getBlobs().get(filePath) + ".txt"));
-                String currContents = readContentsAsString(join(BLOB_DIR, currCommit.getBlobs().get(filePath) + ".txt"));
+    public static HashSet<String> bothModified(Commit splitCommit,Commit commit, Commit currCommit){
+        HashSet<String> bothModified = new HashSet<String>();
+        for (String filePath : currCommit.getBlobs().keySet()) {
+            if(!splitCommit.tracked(filePath)
+                    && commit.tracked(filePath)
+                    && !commit.getBlobs().get(filePath).equals(currCommit.getBlobs().get(filePath))){
+                bothModified.add(filePath);
+            }else if (splitCommit.tracked(filePath)
+                    && !splitCommit.getBlobs().get(filePath).equals(currCommit.getBlobs().get(filePath))
+                    && commit.tracked(filePath)
+                    && !commit.getBlobs().get(filePath).equals(splitCommit.getBlobs().get(filePath))){
+                bothModified.add(filePath);
+            }else if (splitCommit.tracked(filePath)
+                    && !splitCommit.getBlobs().get(filePath).equals(currCommit.getBlobs().get(filePath))
+                    && !commit.tracked(filePath)){
+                bothModified.add(filePath);
+            }
 
-                String replacedContent = "<<<<<<< HEAD\n" + currContents +
-                        "=======\n" + contents + ">>>>>>>\n";
-                File conflictFile = getFileFromCWD(filePath);
-                writeStringToFile(replacedContent, conflictFile.getName(), false);
-                stage.add(conflictFile.getName(), sha1(replacedContent, conflictFile.getName()));
-                writeObject(join(STAGE_DIR, "stage.txt"), stage);
-                conflict = true;
+            for (String file : commit.getBlobs().keySet()) {
+                if (splitCommit.tracked(file)
+                        && !splitCommit.getBlobs().get(file).equals(commit.getBlobs().get(file))
+                        && !currCommit.tracked(file)) {
+                    bothModified.add(file);
+                }
             }
         }
+        return bothModified;
+    }
+
+    public static boolean checkConflict(Commit commit, Commit currCommit, Commit splitCommit) {
+        boolean conflict = false;
+        HashSet<String> bothModified = bothModified(splitCommit, commit, currCommit);
+        for (String filePath : bothModified) {
+            writeConflictFile(filePath, commit, currCommit);
+            stage.add(filePath,sha1(readContents(getFileFromCWD(filePath)),filePath));
+            conflict = true;
+            writeObject(join(STAGE_DIR, "stage.txt"), stage);
+        }
         return conflict;
+    }
+
+    public static void writeConflictFile(String filePath, Commit commit, Commit currCommit) {
+        File file = getFileFromCWD(filePath);
+        String contents = "<<<<<<< HEAD\n";
+        if (currCommit.tracked(filePath)) {
+            contents += readContentsAsString(getFile(currCommit.getBlobs().get(filePath) + ".txt", BLOB_DIR.listFiles()));
+        }
+        contents += "=======\n";
+        if (commit.tracked(filePath)) {
+            contents += readContentsAsString(getFile(commit.getBlobs().get(filePath) + ".txt", BLOB_DIR.listFiles()));
+        }
+        contents += ">>>>>>>\n";
+        writeContents(file, contents);
     }
 
     /**
@@ -515,14 +547,11 @@ public class Repository {
 
     public static boolean checkModifiedFile(String filePath, String currContentID, Commit start, Commit end) {
         Commit curr = start;
-        while (!curr.getOwnRefHash().equals(end.getOwnRefHash())&& curr.getParentHash()!=null) {
-            if (curr.getBlobs().containsKey(filePath) && !curr.getBlobs().get(filePath).equals(currContentID)) {
-                return true;
-            }// if the file is deleted in the commit
-            else if (!curr.getBlobs().containsKey(filePath)) {
+        while (!curr.getOwnRefHash().equals(end.getOwnRefHash()) && curr.getParentHash()!=null) {
+            if (curr.tracked(filePath) && !curr.getBlobs().get(filePath).equals(currContentID)) {
                 return true;
             }
-            curr = curr.getParentHash()!=null?readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class):null;
+            curr = curr.getParentHash()!=null ? readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class) : null;
         }
         return false;
     }
@@ -530,7 +559,7 @@ public class Repository {
     /**
      * A helper method that iterates through the commit
      * and checks if files need to be changed or updated.
-     * case 5,1
+     *
      **/
 
     public static void checkCommitTobeModified(Commit commit, Commit currCommit, Commit splitCommit) {
@@ -542,13 +571,13 @@ public class Repository {
                     && !f.exists();
             boolean cond2 = splitCommit.tracked(filePath)
                     && !splitCommit.getBlobs().get(filePath).equals(commit.getBlobs().get(filePath))
-                    && !checkModifiedFile(filePath, splitCommit.getBlobs().get(filePath), currCommit, splitCommit);
+                    && !checkModifiedFile(filePath, splitCommit.getBlobs().get(filePath), currCommit, splitCommit)
+                    && currCommit.tracked(filePath);
 
             if (cond1 || cond2) {
                 revertFile(f, commit);
                 stage.add(filePath, commit.getBlobs().get(filePath));
                 writeObject(join(STAGE_DIR, "stage.txt"), stage);
-
             }
         }
     }
@@ -675,13 +704,9 @@ public class Repository {
         Commit headCommit = getHeadCommit();
         stage = getStagingArea();
         ArrayList<File> untrackedFiles = new ArrayList<>();
-        for (File f : CWD.listFiles()) {
-            if (!f.isDirectory()) {
-                if (!headCommit.getBlobs().containsKey(f.getName()) && !stage.getAddedFiles().containsKey(f.getName())) {
-                    untrackedFiles.add(f);
-                } else if (stage.getRemovedFiles().contains(f.getName())&&!headCommit.getBlobs().containsKey(f.getName())){
-                    untrackedFiles.add(f);
-                }
+        for (File file : CWD.listFiles()) {
+            if (!file.isDirectory() && !headCommit.tracked(file.getName())&&!stage.getAddedFiles().containsKey(file.getName())) {
+                untrackedFiles.add(file);
             }
         }
         return untrackedFiles;

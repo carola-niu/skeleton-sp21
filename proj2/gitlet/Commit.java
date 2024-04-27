@@ -24,9 +24,9 @@ public class Commit implements Serializable {
     private String ownRefHash;
     /** Stores the mapping of files and SHA-1 IDS of
      * file's contents added to this commit.*/
-    private HashMap<String,String> blobs; //<files, SHA1>
+    private HashMap<String, String> blobs; //<files, SHA1>
 
-    public Commit(String message,HashMap<String,String>blobMap,String parents) {
+    public Commit(String message,HashMap<String, String> blobMap,String parents) {
         this.message = message;
         Date currentTime = new Date();
         this.timestamp = dateToTimeStamp(currentTime);
@@ -44,7 +44,7 @@ public class Commit implements Serializable {
     }
 
     public String createID() {
-        return Utils.sha1(timestamp,message, parents,blobs.toString());
+        return Utils.sha1(timestamp, message, parents, blobs.toString());
     }
 
     public String getOwnRefHash() {
@@ -68,7 +68,7 @@ public class Commit implements Serializable {
     }
 
     public String getIDFromFile(String fileName) {
-        if(!blobs.containsKey(fileName)) {
+        if (!blobs.containsKey(fileName)) {
             return null;
         }
         return blobs.get(fileName);
