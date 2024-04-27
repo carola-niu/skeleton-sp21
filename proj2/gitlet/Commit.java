@@ -1,27 +1,16 @@
 package gitlet;
-import javax.swing.text.DateFormatter;
-import java.io.File;
-import java.io.IOError;
-import java.io.IOException;
 import java.io.Serializable;
-// TODO: any imports you need here
+
 
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 
-import java.util.Date; // TODO: You'll likely use this in this class
-import java.util.HashMap;
-import java.util.Locale;
+import java.util.*;
 
-/** Represents a gitlet commit object.
- *  TODO: It's a good idea to give a description here of what else this Class
- *  does at a high level.
- *
- *  @author TODO
- */
+
 public class Commit implements Serializable {
     /**
-     * TODO: add instance variables here.
+     *
      *
      * List all instance variables of the Commit class here with a useful
      * comment above them describing what that variable represents and how that
@@ -31,25 +20,22 @@ public class Commit implements Serializable {
     /** The message of this Commit. */
     private String message;
     private String timestamp;
-    private String parentRefHash;
+    private String parents;
     private String ownRefHash;
     /** Stores the mapping of files and SHA-1 IDS of
      * file's contents added to this commit.*/
     private HashMap<String,String> blobs; //<files, SHA1>
 
-
-    /* TODO: fill in the rest of this class. */
-
-    public Commit(String message,HashMap<String,String>blobMap,String parent) {
+    public Commit(String message,HashMap<String,String>blobMap,String parents) {
         this.message = message;
         Date currentTime = new Date();
         this.timestamp = dateToTimeStamp(currentTime);
         this.blobs = blobMap;
-        this.parentRefHash = parent;
+        this.parents = parents;
         this.ownRefHash = createID(); //calculate sha1 of blob
     }
 
-    public Commit(){
+    public Commit() {
         this.message = "initial commit";
         Date currentTime = new Date(0);
         this.timestamp = dateToTimeStamp(currentTime);
@@ -57,23 +43,23 @@ public class Commit implements Serializable {
         this.blobs = new HashMap<>();
     }
 
-    public String createID(){
-        return Utils.sha1(timestamp,message,parentRefHash,blobs.toString());
+    public String createID() {
+        return Utils.sha1(timestamp,message, parents,blobs.toString());
     }
 
-    public String getOwnRefHash(){
+    public String getOwnRefHash() {
         return ownRefHash;
     }
 
-    public String getParentRefHash() {
-        return parentRefHash;
+    public String getParentHash() {
+        return parents;
     }
 
     public String getMessage() {
         return message;
     }
 
-    public String getTimestamp(){
+    public String getTimestamp() {
         return timestamp;
     }
 
@@ -81,30 +67,20 @@ public class Commit implements Serializable {
         return blobs;
     }
 
-    public String getIDFromFile(String fileName){
-        if(!blobs.containsKey(fileName)){
+    public String getIDFromFile(String fileName) {
+        if(!blobs.containsKey(fileName)) {
             return null;
         }
         return blobs.get(fileName);
     }
 
-   public String getFileFromFile(String sha1){
-        for(String fileName:blobs.keySet()){
-            if(blobs.get(fileName).equals(sha1)){
+    public String getFileFromFile(String sha1) {
+        for (String fileName:blobs.keySet()) {
+            if (blobs.get(fileName).equals(sha1)) {
                 return fileName;
             }
         }
         return null;
-    }
-
-    /**
-     * Adds the given file and its contents to the commit
-     * @param file
-     */
-    public void addFile(File file) throws IOException {
-        String sha1 = Utils.sha1(Utils.readContentsAsString(file));
-        blobs.put(file.getCanonicalPath(),sha1);
-        ownRefHash = createID();
     }
 
     /**
@@ -117,9 +93,17 @@ public class Commit implements Serializable {
      */
 
 
-    public static String dateToTimeStamp(Date date){
+    public static String dateToTimeStamp(Date date) {
         DateFormat dateFormat = new SimpleDateFormat("EEE MMM d HH:mm:ss yyyy Z", Locale.US);
         return dateFormat.format(date);
+    }
+
+    public void setParents(String parent) {
+        this.parents = parent;
+    }
+
+    public boolean tracked(String fileName) {
+        return blobs.containsKey(fileName);
     }
 
 

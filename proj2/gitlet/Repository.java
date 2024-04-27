@@ -1,7 +1,6 @@
 package gitlet;
 
 import java.io.File;
-import java.io.IOException;
 
 import java.util.*;
 
@@ -10,14 +9,14 @@ import static gitlet.Utils.*;
 
 
 /** Represents a gitlet repository.
- *  TODO: It's a good idea to give a description here of what else this Class
+ *
  *  does at a high level.
  *
- *  @author TODO
+ *  @author Yiyi
  */
 public class Repository {
     /**
-     * TODO: add instance variables here.
+     *
      * <p>
      * List all instance variables of the Repository class here with a useful
      * comment above them describing what that variable represents and how that
@@ -141,19 +140,33 @@ public class Repository {
         return newBlob;
     }
 
-    public static void commit(String message) {
+    public static void commit(String... args) {
         //change could be adding or deleting, so there are addedFile and deletedFile
         stage = getStagingArea();
+        String secondParent = "";
         if (stage.getAddedFiles().isEmpty()&& stage.getRemovedFiles().isEmpty()) {
             System.out.println("No changes added to the commit.");
             return;
-        } else if (message.equals("")) {
+        } else if (args.length == 0||args[0].isEmpty()) {
             System.out.println("Please enter a commit message.");
             System.exit(0);
+        }else if (args.length==3 && args[1].equals("commit-merge")) {
+            secondParent = args[2];
         }
+        String message = args[0];
+
+
         //parentID
         String currentBranch = readContentsAsString(join(BRANCH_DIR, "HEAD.txt"));
-        String parentID = readContentsAsString(join(BRANCH_DIR, currentBranch));
+        Commit parentCommit = getHeadCommit();
+        if(secondParent.isEmpty()){
+            parentCommit.setParents(parentCommit.getOwnRefHash());
+        }else{
+            parentCommit.setParents(parentCommit.getOwnRefHash() + " " + secondParent);
+        }
+        String parentID = parentCommit.getOwnRefHash();
+
+
         //copiedBlob
         Commit prevCommit = readObject(join(COMMIT_DIR, parentID + ".txt"), Commit.class);
         HashMap<String, String> copiedBlob = getNewBlob(prevCommit, stage);
@@ -174,20 +187,11 @@ public class Repository {
         Commit curr = getHeadCommit();
         stage = getStagingArea();
         boolean isStaged = stage.getAddedFiles().containsKey(fileName);
-        boolean isTracked = false;
-        ArrayList<String> committedFiles = new ArrayList<>(curr.getBlobs().keySet());
-        for (String f : committedFiles) {
-            if (f.equals(fileName)) {
-                isTracked = true;
-            }
-        }
-        if (isTracked) {
+
+        if (curr.tracked(fileName) && !isStaged) {
             stage.addToRemovedFiles(fileName);
-            restrictedDelete(fileName);
-            if (isStaged) {
-                stage.getAddedFiles().remove(fileName);
-            }
             writeObject(join(STAGE_DIR, "stage.txt"), stage);
+            restrictedDelete(fileName);
         } else if (isStaged) {
             stage.getAddedFiles().remove(fileName);
             writeObject(join(STAGE_DIR, "stage.txt"), stage);
@@ -205,8 +209,8 @@ public class Repository {
             System.out.println("commit " + curr.getOwnRefHash());
             System.out.println("Date: " + curr.getTimestamp());
             System.out.println(curr.getMessage() + "\n");
-            if (curr.getParentRefHash() != null) {
-                curr = readObject(join(COMMIT_DIR, curr.getParentRefHash() + ".txt"), Commit.class);
+            if (curr.getParentHash() != null) {
+                curr = readObject(join(COMMIT_DIR, curr.getParentHash() + ".txt"), Commit.class);
             } else {
                 curr = null;
             }
@@ -404,8 +408,6 @@ public class Repository {
         writeContents(getHeadBranchName(), commitID);
         rm_Branch(branchName);
 
-
-
     }
 
 
@@ -450,15 +452,12 @@ public class Repository {
         }
         untrackedFileError(branchCommit, currentCommit);
         checkCommitTobeModified(branchCommit, currentCommit, splitPoint);
-        for (String filePath : currentCommit.getBlobs().keySet()) {
-            if (!branchCommit.getBlobs().containsKey(filePath) && !splitPoint.getBlobs().containsKey(filePath)) {
-                stage.add(filePath, readContentsAsString(new File(filePath)));
-                writeObject(join(STAGE_DIR, "stage.txt"), stage);
-            }
-        }
         checkSplitCommit(branchCommit, currentCommit, splitPoint);
-        boolean conflict = checkMergeConflict(branchCommit, currentCommit);
-        commit("Merged " +branchName + " into " + removeTXT(getHeadBranchName().getName()) + ".");
+        boolean conflict = checkMergeConflict(splitPoint,branchCommit, currentCommit);
+        String message = "Merged " +branchName + " into " + removeTXT(getHeadBranchName().getName()) + ".";
+        String[] input = { message,"commit-merge", commitID};
+        commit(input);
+
         if (conflict) {
             System.out.println("Encountered a merge conflict.");
         }
@@ -471,53 +470,29 @@ public class Repository {
      */
 
     public static Commit findSplitPoint(Commit currentCommit, Commit branchCommit) {
-        HashSet<String> visited = new HashSet<>();
-        //add all the parents of the current commit to the set
-        String currentCommitID = currentCommit.getOwnRefHash();
-        visited.add(currentCommitID);
-        Queue<Commit> queue = new LinkedList<>();
-        queue.add(currentCommit);
-        while (!queue.isEmpty()){
-            for (int i = 0; i < queue.size(); i++) {
-                Commit curr = queue.poll();
-                if (curr.getParentRefHash() != null && !visited.contains(curr.getParentRefHash())) {
-                    visited.add(curr.getParentRefHash());
-                    Commit parent = readObject(join(COMMIT_DIR, curr.getParentRefHash() + ".txt"), Commit.class);
-                    queue.add(parent);
-                }
-            }
+        HashSet<String> branchCommits = new HashSet<>();
+        Commit curr = branchCommit;
+        while (curr != null) {
+            branchCommits.add(curr.getOwnRefHash());
+            curr = curr.getParentHash()!=null?readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class):null;
         }
-        //check if the branch commit is in the set
-        queue.add(branchCommit);
-        while (!queue.isEmpty()) {
-            for (int i = 0; i < queue.size(); i++) {
-                Commit curr = queue.poll();
-                if (visited.contains(curr.getOwnRefHash())) {
-                    return curr;
-                }
-                if (curr.getParentRefHash() != null) {
-                    Commit parent = readObject(join(COMMIT_DIR, curr.getParentRefHash() + ".txt"), Commit.class);
-                    queue.add(parent);
-                }
+        curr = currentCommit;
+        while (curr != null) {
+            if (branchCommits.contains(curr.getOwnRefHash())) {
+                return curr;
             }
+            curr = curr.getParentHash()!=null?readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class):null;
         }
         return null;
+
     }
 
-//    public static void writeConflict(String fileName,Commit headCommit,Commit branchCommit) {
-//        String headContent = readContentsAsString(join(headCommit.getBlobs().get(fileName)+".txt"));
-//        String branchContent = readContentsAsString(join(branchCommit.getBlobs().get(fileName)+".txt"));
-//        String conflictContent = "<<<<<<< HEAD\n" + headContent + "=======\n" + branchContent + ">>>>>>>\n";
-//        writeContents(new File(fileName), conflictContent);
-//    }
-
-
     // case 3: modified in other and head; in same way or different way
-    public static boolean checkMergeConflict(Commit commit, Commit currCommit) {
+    public static boolean checkMergeConflict(Commit splitCommit,Commit commit, Commit currCommit) {
         boolean conflict = false;
         stage = getStagingArea();
         for (String filePath : commit.getBlobs().keySet()) {
-            if (currCommit.getBlobs().containsKey(filePath) && !currCommit.getBlobs().get(filePath).equals(commit.getBlobs().get(filePath))) {
+            if (currCommit.tracked(filePath) && !currCommit.getBlobs().get(filePath).equals(commit.getBlobs().get(filePath))&& !splitCommit.tracked(filePath)) {
                 String contents = readContentsAsString(join(BLOB_DIR, commit.getBlobs().get(filePath) + ".txt"));
                 String currContents = readContentsAsString(join(BLOB_DIR, currCommit.getBlobs().get(filePath) + ".txt"));
 
@@ -540,11 +515,14 @@ public class Repository {
 
     public static boolean checkModifiedFile(String filePath, String currContentID, Commit start, Commit end) {
         Commit curr = start;
-        while (!curr.getOwnRefHash().equals(end.getOwnRefHash())&& curr.getParentRefHash()!=null) {
+        while (!curr.getOwnRefHash().equals(end.getOwnRefHash())&& curr.getParentHash()!=null) {
             if (curr.getBlobs().containsKey(filePath) && !curr.getBlobs().get(filePath).equals(currContentID)) {
                 return true;
+            }// if the file is deleted in the commit
+            else if (!curr.getBlobs().containsKey(filePath)) {
+                return true;
             }
-            curr = curr.getParentRefHash()!=null?readObject(getFile(curr.getParentRefHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class):null;
+            curr = curr.getParentHash()!=null?readObject(getFile(curr.getParentHash() + ".txt", COMMIT_DIR.listFiles()), Commit.class):null;
         }
         return false;
     }
@@ -559,9 +537,10 @@ public class Repository {
         stage = getStagingArea();
         for (String filePath : commit.getBlobs().keySet()) {
             File f = getFileFromCWD(filePath);
-            boolean cond1 = !currCommit.getBlobs().containsKey(filePath)
-                    && !splitCommit.getBlobs().containsKey(filePath);
-            boolean cond2 = splitCommit.getBlobs().containsKey(filePath)
+            boolean cond1 = !currCommit.tracked(filePath)
+                    && !splitCommit.tracked(filePath)
+                    && !f.exists();
+            boolean cond2 = splitCommit.tracked(filePath)
                     && !splitCommit.getBlobs().get(filePath).equals(commit.getBlobs().get(filePath))
                     && !checkModifiedFile(filePath, splitCommit.getBlobs().get(filePath), currCommit, splitCommit);
 
@@ -569,7 +548,7 @@ public class Repository {
                 revertFile(f, commit);
                 stage.add(filePath, commit.getBlobs().get(filePath));
                 writeObject(join(STAGE_DIR, "stage.txt"), stage);
-                //?how to distinguish removed or added files?
+
             }
         }
     }
@@ -590,10 +569,12 @@ public class Repository {
                 Commit curr = getHeadCommit();
                 if (curr.getBlobs().containsKey(filePath)) {
                     stage.addToRemovedFiles(filePath);
-                    curr.getBlobs().remove(filePath);
+                    writeObject(join(STAGE_DIR, "stage.txt"), stage);
+                    restrictedDelete(filePath);
                 }
             } else if (!currCommit.getBlobs().containsKey(filePath) && !checkModifiedFile(filePath, splitCommit.getBlobs().get(filePath), commit, splitCommit)) {
                 stage.addToRemovedFiles(filePath);
+                writeObject(join(STAGE_DIR, "stage.txt"), stage);
                 restrictedDelete(filePath);
             }
         }
@@ -645,6 +626,7 @@ public class Repository {
         }
     }
 
+    // revert file to the version in the given commit
 
     public static void revertFile(File f, Commit commit) {
         if (!commit.getBlobs().containsKey(f.getName())) {
